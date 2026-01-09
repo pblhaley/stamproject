@@ -1,0 +1,51 @@
+import { runtime } from "~/lib/makeswift/runtime"
+import { Number, Select, Style, TextInput } from "@makeswift/runtime/controls"
+import { RecentPurchasesBadge } from "./client"
+
+runtime.registerComponent(RecentPurchasesBadge, {
+  type: "recent-purchases-badge",
+  label: "Recent Purchases Badge",
+  props: {
+    className: Style(),
+    productId: Number({
+      label: "Product ID",
+      defaultValue: 0,
+      step: 1,
+    }),
+    message: TextInput({
+      label: "Message",
+      defaultValue: "{count} sold in the last 24 hours",
+      selectAll: true,
+    }),
+    variant: Select({
+      label: "Variant",
+      options: [
+        { value: "default", label: "Default" },
+        { value: "minimal", label: "Minimal" },
+        { value: "prominent", label: "Prominent" },
+      ],
+      defaultValue: "default",
+    }),
+    icon: Select({
+      label: "Icon",
+      options: [
+        { value: "flame", label: "Flame" },
+        { value: "bag", label: "Shopping Bag" },
+        { value: "trending", label: "Trending" },
+        { value: "users", label: "Users" },
+        { value: "none", label: "None" },
+      ],
+      defaultValue: "flame",
+    }),
+    showThreshold: Number({
+      label: "Show Threshold",
+      defaultValue: 1,
+      step: 1,
+    }),
+    refreshInterval: Number({
+      label: "Refresh Interval (seconds)",
+      defaultValue: 60,
+      step: 10,
+    }),
+  },
+})

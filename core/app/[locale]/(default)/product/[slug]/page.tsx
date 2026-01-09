@@ -30,6 +30,8 @@ import {
   getStreamableProductVariant,
 } from './page-data';
 
+import { RecentPurchasesBadge } from '~/lib/makeswift/components/recent-purchases-badge/client';
+
 interface Props {
   params: Promise<{ slug: string; locale: string }>;
   searchParams: Promise<SearchParams>;
@@ -533,11 +535,19 @@ export default async function Product({ params, searchParams }: Props) {
         <ProductDetail
           action={addToCart}
           additionalActions={
-            <WishlistButton
-              formId={detachedWishlistFormId}
-              productId={productId}
-              productSku={streamableProductSku}
-            />
+            <>
+              <RecentPurchasesBadge
+                productId={baseProduct.entityId}
+                variant="prominent"
+                message="{count} purchased in the last 24 hours"
+                showThreshold={1}
+              />
+              <WishlistButton
+                formId={detachedWishlistFormId}
+                productId={productId}
+                productSku={streamableProductSku}
+              />
+            </>
           }
           additionalInformationTitle={t('ProductDetails.additionalInformation')}
           ctaDisabled={streameableCtaDisabled}
