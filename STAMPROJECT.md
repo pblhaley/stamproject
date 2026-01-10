@@ -474,11 +474,11 @@ BIGCOMMERCE_ACCESS_TOKEN=your_access_token
 |------|------|---------|-------------|
 | `productId` | `number` | - | BigCommerce product entity ID |
 | `message` | `string` | Auto-generated based on time period | Custom message with `{count}` placeholder |
-| `variant` | `"default" \| "minimal" \| "prominent"` | `"default"` | Visual style variant |
-| `icon` | `"flame" \| "bag" \| "trending" \| "users" \| "none"` | `"flame"` | Icon to display |
+| `variant` | `"default" | "minimal" | "prominent"` | `"default"` | Visual style variant |
+| `icon` | `"flame" | "bag" | "trending" | "users" | "none"` | `"flame"` | Icon to display |
 | `showThreshold` | `number` | `1` | Minimum count to show badge |
 | `refreshInterval` | `number` | `0` | Auto-refresh interval in seconds (0 = disabled) |
-| `timePeriod` | `"24h" \| "week" \| "month"` | `"24h"` | Time range for counting purchases |
+| `timePeriod` | `"24h" | "week" | "month"` | `"24h"` | Time range for counting purchases |
 
 ---
 
@@ -611,7 +611,7 @@ Then update the `RecentPurchasesBadgeProps` type and the Makeswift registration.
 ### API Returns 500 Error
 
 1. Check terminal logs for specific error messages
-2. Verify environment variables are set in `core/.env.local`
+2. Verify environment variables are set correctly in `.env.local`
 3. Confirm API token has Orders read permission
 
 ### API Returns 400 Error
@@ -623,23 +623,13 @@ Then update the `RecentPurchasesBadgeProps` type and the Makeswift registration.
 
 1. Verify `MAKESWIFT_SITE_API_KEY` is correct
 2. Check Host URL in Makeswift dashboard matches `http://localhost:3000`
-3. Ensure environment variables are in the correct `.env.local` location (inside `core/` for monorepos)
+3. Ensure environment variables are correct without quotes or white space in `.env.local` location
 
 ---
 
 ## Issues Encountered & Resolutions
 
-### 1. Makeswift "Host Manifest Unreachable" Error
-
-**Symptom**: CORS error when loading Makeswift editor, manifest returns "Unauthorized"
-
-**Cause**: In a monorepo setup, the `.env.local` file was in the root directory, but the app runs from `core/` and looks for environment variables there.
-
-**Resolution**: Place `.env.local` in `core/.env.local` (the app directory), not the monorepo root.
-
----
-
-### 2. BigCommerce API 400 Error - Invalid status_id Field
+### 1. BigCommerce API 400 Error - Invalid status_id Field
 
 **Symptom**: API returns `{"status":400,"message":"The field 'status_id' is invalid."}`
 
@@ -663,7 +653,7 @@ const completedOrders = orders.filter(order =>
 
 ---
 
-### 3. Tailwind Gradient Classes Not Rendering
+### 2. Tailwind Gradient Classes Not Rendering
 
 **Symptom**: Badge renders in DOM but appears as unstyled gray box. Tailwind classes like `bg-gradient-to-r from-orange-500 to-red-500` are not applied.
 
@@ -688,7 +678,7 @@ const variantStyles = {
 
 ---
 
-### 4. Duplicate Runtime Instance
+### 3. Duplicate Runtime Instance
 
 **Symptom**: Makeswift editor fails to load after adding component
 
@@ -706,7 +696,7 @@ export const runtime = new ReactRuntimeCore({ ... });
 
 ---
 
-### 5. Path Alias Mismatch
+### 4. Path Alias Mismatch
 
 **Symptom**: Module not found errors
 
@@ -723,7 +713,7 @@ import { runtime } from '@/lib/makeswift/runtime';
 
 ---
 
-### 6. ESLint Errors on Vercel Build
+### 5. ESLint Errors on Vercel Build
 
 **Symptom**: Vercel build fails with multiple ESLint errors including:
 - `@typescript-eslint/no-unsafe-assignment`
