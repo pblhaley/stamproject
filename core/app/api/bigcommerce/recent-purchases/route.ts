@@ -1,142 +1,158 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { type NextRequest, NextResponse } from 'next/server';
 
-const BIGCOMMERCE_STORE_HASH = process.env.BIGCOMMERCE_STORE_HASH
-const BIGCOMMERCE_ACCESS_TOKEN = process.env.BIGCOMMERCE_ACCESS_TOKEN
+const BIGCOMMERCE_STORE_HASH = process.env.BIGCOMMERCE_STORE_HASH;
+const BIGCOMMERCE_ACCESS_TOKEN = process.env.BIGCOMMERCE_ACCESS_TOKEN;
 
 interface OrderProduct {
-  product_id: number
-  quantity: number
+  product_id: number;
+  quantity: number;
 }
 
 interface Order {
-  id: number
-  date_created: string
-  status_id: number
-  products: { url: string }
+  id: number;
+  date_created: string;
+  status_id: number;
+  products: { url: string };
 }
 
-const cache = new Map<string, { data: any; timestamp: number }>()
-const CACHE_TTL = 60 * 1000
+interface CacheEntry {
+  data: {
+    count: number;
+    productId: string;
+    period: string;
+    lastUpdated: string;
+    isMock?: boolean;
+  };
+  timestamp: number;
+}
 
-function getMinDate(period: string): Date {
-  const now = new Date()
+const cache = new Map<string, CacheEntry>();
+const CACHE_TTL = 60 * 1000;
+
+function getMinDate(period: string): string {
+  const now = new Date();
+
   switch (period) {
-    case "week":
-      now.setDate(now.getDate() - 7)
-      break
-    case "month":
-      now.setMonth(now.getMonth() - 1)
-      break
-    case "24h":
+    case 'week':
+      now.setDate(now.getDate() - 7);
+      break;
+    case 'month':
+      now.setDate(now.getDate() - 30);
+      break;
+    case '24h':
     default:
-      now.setHours(now.getHours() - 24)
-      break
+      now.setHours(now.getHours() - 24);
+      break;
   }
-  return now
+
+  return now.toISOString();
 }
 
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url)
-  const productId = searchParams.get("productId")
-  const period = searchParams.get("period") || "24h"
+  const { searchParams } = new URL(request.url);
+  const productId = searchParams.get('productId');
+  const period = searchParams.get('period') || '24h';
 
   if (!productId) {
-    return NextResponse.json({ error: "Product ID is required" }, { status: 400 })
+    return NextResponse.json({ error: 'Product ID is required' }, { status: 400 });
   }
 
-  const cacheKey = `purchases_${productId}_${period}`
-  const cached = cache.get(cacheKey)
+  const cacheKey = `purchases_${productId}_${period}`;
+  const cached = cache.get(cacheKey);
+
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    return NextResponse.json(cached.data)
+    return NextResponse.json(cached.data);
   }
 
   if (!BIGCOMMERCE_STORE_HASH || !BIGCOMMERCE_ACCESS_TOKEN) {
-    console.warn("BigCommerce credentials not configured, returning mock data")
     const mockData = {
       count: Math.floor(Math.random() * 50) + 5,
       productId,
       period,
       lastUpdated: new Date().toISOString(),
       isMock: true,
-    }
-    return NextResponse.json(mockData)
+    };
+
+    return NextResponse.json(mockData);
   }
 
   try {
-    const count = await fetchRecentPurchaseCount(productId, period)
+    const count = await fetchRecentPurchaseCount(productId, period);
 
     const responseData = {
       count,
       productId,
       period,
       lastUpdated: new Date().toISOString(),
-    }
+    };
 
-    cache.set(cacheKey, { data: responseData, timestamp: Date.now() })
+    cache.set(cacheKey, { data: responseData, timestamp: Date.now() });
 
-    return NextResponse.json(responseData)
+    return NextResponse.json(responseData);
   } catch (error) {
-    console.error("Error fetching BigCommerce orders:", error)
-    return NextResponse.json({ error: "Failed to fetch purchase data" }, { status: 500 })
+    // eslint-disable-next-line no-console
+    console.error('Error fetching BigCommerce orders:', error);
+
+    return NextResponse.json({ error: 'Failed to fetch purchase data' }, { status: 500 });
   }
 }
 
 async function fetchRecentPurchaseCount(productId: string, period: string): Promise<number> {
-  const baseUrl = `https://api.bigcommerce.com/stores/${BIGCOMMERCE_STORE_HASH}/v2`
-
-  const minDate = getMinDate(period)
-  const minDateCreated = minDate.toISOString()
+  const baseUrl = `https://api.bigcommerce.com/stores/${BIGCOMMERCE_STORE_HASH}/v2`;
+  const minDateCreated = getMinDate(period);
 
   const ordersResponse = await fetch(
     `${baseUrl}/orders?min_date_created=${encodeURIComponent(minDateCreated)}&limit=250`,
     {
       headers: {
-        "X-Auth-Token": BIGCOMMERCE_ACCESS_TOKEN!,
-        "Content-Type": "application/json",
-        Accept: "application/json",
+        'X-Auth-Token': BIGCOMMERCE_ACCESS_TOKEN!,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
       },
     },
-  )
+  );
 
   if (!ordersResponse.ok) {
-    throw new Error(`BigCommerce API error: ${ordersResponse.status}`)
+    throw new Error(`BigCommerce API error: ${ordersResponse.status}`);
   }
 
-  const orders: Order[] = await ordersResponse.json()
+  const orders: Order[] = await ordersResponse.json();
 
   if (!orders || orders.length === 0) {
-    return 0
+    return 0;
   }
 
-  const completedOrders = orders.filter((order) => [2, 10, 11].includes(order.status_id))
+  const completedOrders = orders.filter((order) => [2, 10, 11].includes(order.status_id));
 
-  let totalCount = 0
-  const targetProductId = Number.parseInt(productId, 10)
+  let totalCount = 0;
+  const targetProductId = Number.parseInt(productId, 10);
 
   await Promise.all(
     completedOrders.map(async (order) => {
       try {
         const productsResponse = await fetch(`${baseUrl}/orders/${order.id}/products`, {
           headers: {
-            "X-Auth-Token": BIGCOMMERCE_ACCESS_TOKEN!,
-            "Content-Type": "application/json",
-            Accept: "application/json",
+            'X-Auth-Token': BIGCOMMERCE_ACCESS_TOKEN!,
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
           },
-        })
+        });
 
         if (productsResponse.ok) {
-          const products: OrderProduct[] = await productsResponse.json()
+          const products: OrderProduct[] = await productsResponse.json();
+
           products.forEach((product) => {
             if (product.product_id === targetProductId) {
-              totalCount += product.quantity
+              totalCount += product.quantity;
             }
-          })
+          });
         }
       } catch (err) {
-        console.error(`Error fetching products for order ${order.id}:`, err)
+        // eslint-disable-next-line no-console
+        console.error(`Error fetching products for order ${order.id}:`, err);
       }
     }),
-  )
+  );
 
-  return totalCount
+  return totalCount;
 }

@@ -13,6 +13,8 @@ import { productOptionsTransformer } from '~/data-transformers/product-options-t
 import { getPreferredCurrencyCode } from '~/lib/currency';
 import { ProductDetail } from '~/lib/makeswift/components/product-detail';
 
+import { RecentPurchasesBadge } from '~/lib/makeswift/components/recent-purchases-badge/client';
+
 import { addToCart } from './_actions/add-to-cart';
 import { submitReview } from './_actions/submit-review';
 import { ProductAnalyticsProvider } from './_components/product-analytics-provider';
@@ -30,7 +32,7 @@ import {
   getStreamableProductVariant,
 } from './page-data';
 
-import { RecentPurchasesBadge } from '~/lib/makeswift/components/recent-purchases-badge/client';
+
 
 interface Props {
   params: Promise<{ slug: string; locale: string }>;
@@ -537,10 +539,10 @@ export default async function Product({ params, searchParams }: Props) {
           additionalActions={
             <>
               <RecentPurchasesBadge
-                productId={baseProduct.entityId}
-                variant="prominent"
                 message="{count} purchased in the last 24 hours"
+                productId={baseProduct.entityId}
                 showThreshold={1}
+                variant="prominent"
               />
               <WishlistButton
                 formId={detachedWishlistFormId}
