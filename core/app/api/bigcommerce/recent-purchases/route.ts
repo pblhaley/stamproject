@@ -118,7 +118,7 @@ async function fetchRecentPurchaseCount(productId: string, period: string): Prom
     throw new Error(`BigCommerce API error: ${ordersResponse.status}`);
   }
 
-  const orders = (await ordersResponse.json()) as Order[];
+  const orders: Order[] = await ordersResponse.json();
 
   if (orders.length === 0) {
     return 0;
@@ -141,7 +141,7 @@ async function fetchRecentPurchaseCount(productId: string, period: string): Prom
         });
 
         if (productsResponse.ok) {
-          const products = (await productsResponse.json()) as OrderProduct[];
+          const products: OrderProduct[] = await productsResponse.json();
 
           products.forEach((product) => {
             if (product.product_id === targetProductId) {
