@@ -12,7 +12,6 @@ import { productCardTransformer } from '~/data-transformers/product-card-transfo
 import { productOptionsTransformer } from '~/data-transformers/product-options-transformer';
 import { getPreferredCurrencyCode } from '~/lib/currency';
 import { ProductDetail } from '~/lib/makeswift/components/product-detail';
-
 import { RecentPurchasesBadge } from '~/lib/makeswift/components/recent-purchases-badge/client';
 
 import { addToCart } from './_actions/add-to-cart';
@@ -31,8 +30,6 @@ import {
   getStreamableProduct,
   getStreamableProductVariant,
 } from './page-data';
-
-
 
 interface Props {
   params: Promise<{ slug: string; locale: string }>;

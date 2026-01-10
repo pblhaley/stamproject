@@ -36,9 +36,11 @@ function getMinDate(period: string): string {
     case 'week':
       now.setDate(now.getDate() - 7);
       break;
+
     case 'month':
       now.setDate(now.getDate() - 30);
       break;
+
     case '24h':
     default:
       now.setHours(now.getHours() - 24);
@@ -51,7 +53,7 @@ function getMinDate(period: string): string {
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const productId = searchParams.get('productId');
-  const period = searchParams.get('period') || '24h';
+  const period = searchParams.get('period') ?? '24h';
 
   if (!productId) {
     return NextResponse.json({ error: 'Product ID is required' }, { status: 400 });
@@ -105,7 +107,7 @@ async function fetchRecentPurchaseCount(productId: string, period: string): Prom
     `${baseUrl}/orders?min_date_created=${encodeURIComponent(minDateCreated)}&limit=250`,
     {
       headers: {
-        'X-Auth-Token': BIGCOMMERCE_ACCESS_TOKEN!,
+        'X-Auth-Token': BIGCOMMERCE_ACCESS_TOKEN ?? '',
         'Content-Type': 'application/json',
         Accept: 'application/json',
       },
@@ -118,7 +120,7 @@ async function fetchRecentPurchaseCount(productId: string, period: string): Prom
 
   const orders: Order[] = await ordersResponse.json();
 
-  if (!orders || orders.length === 0) {
+  if (orders.length === 0) {
     return 0;
   }
 
@@ -132,7 +134,7 @@ async function fetchRecentPurchaseCount(productId: string, period: string): Prom
       try {
         const productsResponse = await fetch(`${baseUrl}/orders/${order.id}/products`, {
           headers: {
-            'X-Auth-Token': BIGCOMMERCE_ACCESS_TOKEN!,
+            'X-Auth-Token': BIGCOMMERCE_ACCESS_TOKEN ?? '',
             'Content-Type': 'application/json',
             Accept: 'application/json',
           },
