@@ -12,9 +12,18 @@ runtime.registerComponent(RecentPurchasesBadge, {
       defaultValue: 0,
       step: 1,
     }),
+    timePeriod: Select({
+      label: "Time Period",
+      options: [
+        { value: "24h", label: "Last 24 Hours" },
+        { value: "week", label: "This Week" },
+        { value: "month", label: "This Month" },
+      ],
+      defaultValue: "24h",
+    }),
     message: TextInput({
-      label: "Message",
-      defaultValue: "{count} sold in the last 24 hours",
+      label: "Custom Message (optional)",
+      defaultValue: "",
       selectAll: true,
     }),
     variant: Select({
