@@ -118,6 +118,7 @@ async function fetchRecentPurchaseCount(productId: string, period: string): Prom
     throw new Error(`BigCommerce API error: ${ordersResponse.status}`);
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   const orders: Order[] = await ordersResponse.json();
 
   if (orders.length === 0) {
@@ -141,6 +142,7 @@ async function fetchRecentPurchaseCount(productId: string, period: string): Prom
         });
 
         if (productsResponse.ok) {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           const products: OrderProduct[] = await productsResponse.json();
 
           products.forEach((product) => {

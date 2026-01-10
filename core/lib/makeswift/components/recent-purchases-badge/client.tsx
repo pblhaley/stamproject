@@ -62,6 +62,7 @@ export function RecentPurchasesBadge({
         throw new Error('Failed to fetch purchase count');
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const data: ApiResponse = await response.json();
 
       setCount(data.count);
