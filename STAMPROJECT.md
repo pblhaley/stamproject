@@ -1,6 +1,6 @@
 # Recent Purchases Badge - Developer Documentation
 
-A dynamic component for BigCommerce Catalyst storefronts with Makeswift integration. Displays real-time purchase counts for products within configurable time periods.
+A dynamic social proof component for BigCommerce Catalyst storefronts with Makeswift integration. Displays real-time purchase counts for products within configurable time periods.
 
 ---
 
@@ -62,147 +62,167 @@ core/
 Create `core/app/api/bigcommerce/recent-purchases/route.ts`:
 
 ```ts
-import { type NextRequest, NextResponse } from "next/server"
+import { type NextRequest, NextResponse } from 'next/server';
 
-const BIGCOMMERCE_STORE_HASH = process.env.BIGCOMMERCE_STORE_HASH
-const BIGCOMMERCE_ACCESS_TOKEN = process.env.BIGCOMMERCE_ACCESS_TOKEN
+const BIGCOMMERCE_STORE_HASH = process.env.BIGCOMMERCE_STORE_HASH;
+const BIGCOMMERCE_ACCESS_TOKEN = process.env.BIGCOMMERCE_ACCESS_TOKEN;
 
 interface OrderProduct {
-  product_id: number
-  quantity: number
+  product_id: number;
+  quantity: number;
 }
 
 interface Order {
-  id: number
-  date_created: string
-  status_id: number
-  products: { url: string }
+  id: number;
+  date_created: string;
+  status_id: number;
+  products: { url: string };
 }
 
-const cache = new Map<string, { data: any; timestamp: number }>()
-const CACHE_TTL = 60 * 1000 // 1 minute cache
+interface CacheEntry {
+  data: {
+    count: number;
+    productId: string;
+    period: string;
+    lastUpdated: string;
+    isMock?: boolean;
+  };
+  timestamp: number;
+}
+
+const cache = new Map<string, CacheEntry>();
+const CACHE_TTL = 60 * 1000;
 
 function getMinDate(period: string): string {
-  const now = new Date()
+  const now = new Date();
+
   switch (period) {
-    case "week":
-      now.setDate(now.getDate() - 7)
-      break
-    case "month":
-      now.setDate(now.getDate() - 30)
-      break
-    case "24h":
+    case 'week':
+      now.setDate(now.getDate() - 7);
+      break;
+
+    case 'month':
+      now.setDate(now.getDate() - 30);
+      break;
+
+    case '24h':
     default:
-      now.setHours(now.getHours() - 24)
-      break
+      now.setHours(now.getHours() - 24);
+      break;
   }
-  return now.toISOString()
+
+  return now.toISOString();
 }
 
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url)
-  const productId = searchParams.get("productId")
-  const period = searchParams.get("period") || "24h"
+  const { searchParams } = new URL(request.url);
+  const productId = searchParams.get('productId');
+  const period = searchParams.get('period') ?? '24h';
 
   if (!productId) {
-    return NextResponse.json({ error: "Product ID is required" }, { status: 400 })
+    return NextResponse.json({ error: 'Product ID is required' }, { status: 400 });
   }
 
-  const cacheKey = `purchases_${productId}_${period}`
-  const cached = cache.get(cacheKey)
+  const cacheKey = `purchases_${productId}_${period}`;
+  const cached = cache.get(cacheKey);
+
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    return NextResponse.json(cached.data)
+    return NextResponse.json(cached.data);
   }
 
   if (!BIGCOMMERCE_STORE_HASH || !BIGCOMMERCE_ACCESS_TOKEN) {
-    console.warn("BigCommerce credentials not configured, returning mock data")
     const mockData = {
       count: Math.floor(Math.random() * 50) + 5,
       productId,
       period,
       lastUpdated: new Date().toISOString(),
       isMock: true,
-    }
-    return NextResponse.json(mockData)
+    };
+
+    return NextResponse.json(mockData);
   }
 
   try {
-    const count = await fetchRecentPurchaseCount(productId, period)
+    const count = await fetchRecentPurchaseCount(productId, period);
 
     const responseData = {
       count,
       productId,
       period,
       lastUpdated: new Date().toISOString(),
-    }
+    };
 
-    cache.set(cacheKey, { data: responseData, timestamp: Date.now() })
-    return NextResponse.json(responseData)
+    cache.set(cacheKey, { data: responseData, timestamp: Date.now() });
+
+    return NextResponse.json(responseData);
   } catch (error) {
-    console.error("Error fetching BigCommerce orders:", error)
-    return NextResponse.json({ error: "Failed to fetch purchase data" }, { status: 500 })
+    // eslint-disable-next-line no-console
+    console.error('Error fetching BigCommerce orders:', error);
+
+    return NextResponse.json({ error: 'Failed to fetch purchase data' }, { status: 500 });
   }
 }
 
 async function fetchRecentPurchaseCount(productId: string, period: string): Promise<number> {
-  const baseUrl = `https://api.bigcommerce.com/stores/${BIGCOMMERCE_STORE_HASH}/v2`
-  const minDateCreated = getMinDate(period)
+  const baseUrl = `https://api.bigcommerce.com/stores/${BIGCOMMERCE_STORE_HASH}/v2`;
+  const minDateCreated = getMinDate(period);
 
   const ordersResponse = await fetch(
     `${baseUrl}/orders?min_date_created=${encodeURIComponent(minDateCreated)}&limit=250`,
     {
       headers: {
-        "X-Auth-Token": BIGCOMMERCE_ACCESS_TOKEN!,
-        "Content-Type": "application/json",
-        Accept: "application/json",
+        'X-Auth-Token': BIGCOMMERCE_ACCESS_TOKEN ?? '',
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
       },
     },
-  )
+  );
 
   if (!ordersResponse.ok) {
-    const errorText = await ordersResponse.text()
-    console.error("BigCommerce API error:", errorText)
-    throw new Error(`BigCommerce API error: ${ordersResponse.status}`)
+    throw new Error(`BigCommerce API error: ${ordersResponse.status}`);
   }
 
-  const orders: Order[] = await ordersResponse.json()
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+  const orders: Order[] = await ordersResponse.json();
 
-  if (!orders || orders.length === 0) {
-    return 0
+  if (orders.length === 0) {
+    return 0;
   }
 
-  // Filter for completed/shipped orders (status_id 2, 10, 11)
-  const completedOrders = orders.filter((order) => [2, 10, 11].includes(order.status_id))
+  const completedOrders = orders.filter((order) => [2, 10, 11].includes(order.status_id));
 
-  let totalCount = 0
-  const targetProductId = Number.parseInt(productId, 10)
+  let totalCount = 0;
+  const targetProductId = Number.parseInt(productId, 10);
 
   await Promise.all(
     completedOrders.map(async (order) => {
       try {
         const productsResponse = await fetch(`${baseUrl}/orders/${order.id}/products`, {
           headers: {
-            "X-Auth-Token": BIGCOMMERCE_ACCESS_TOKEN!,
-            "Content-Type": "application/json",
-            Accept: "application/json",
+            'X-Auth-Token': BIGCOMMERCE_ACCESS_TOKEN ?? '',
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
           },
-        })
+        });
 
         if (productsResponse.ok) {
-          const products: OrderProduct[] = await productsResponse.json()
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          const products: OrderProduct[] = await productsResponse.json();
+
           products.forEach((product) => {
             if (product.product_id === targetProductId) {
-              totalCount += product.quantity
+              totalCount += product.quantity;
             }
-          })
+          });
         }
       } catch (err) {
-        console.error(`Error fetching products for order ${order.id}:`, err)
+        // eslint-disable-next-line no-console
+        console.error(`Error fetching products for order ${order.id}:`, err);
       }
     }),
-  )
+  );
 
-  return totalCount
+  return totalCount;
 }
 ```
 
@@ -211,20 +231,24 @@ async function fetchRecentPurchaseCount(productId: string, period: string): Prom
 Create `core/lib/makeswift/components/recent-purchases-badge/client.tsx`:
 
 ```tsx
-"use client"
+'use client';
 
-import { useState, useEffect, useCallback } from "react"
-import { Flame, ShoppingBag, TrendingUp, Users } from "lucide-react"
+import { Flame, ShoppingBag, TrendingUp, Users } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
 
 export interface RecentPurchasesBadgeProps {
-  className?: string
-  productId?: number
-  message?: string
-  variant?: "default" | "minimal" | "prominent"
-  icon?: "flame" | "bag" | "trending" | "users" | "none"
-  showThreshold?: number
-  refreshInterval?: number
-  timePeriod?: "24h" | "week" | "month"
+  className?: string;
+  productId?: number;
+  message?: string;
+  variant?: 'default' | 'minimal' | 'prominent';
+  icon?: 'flame' | 'bag' | 'trending' | 'users' | 'none';
+  showThreshold?: number;
+  refreshInterval?: number;
+  timePeriod?: '24h' | 'week' | 'month';
+}
+
+interface ApiResponse {
+  count: number;
 }
 
 const iconMap = {
@@ -233,108 +257,116 @@ const iconMap = {
   trending: TrendingUp,
   users: Users,
   none: null,
-}
+};
 
 const defaultMessages = {
-  "24h": "{count} purchased in the last 24 hours",
-  week: "{count} purchased this week",
-  month: "{count} purchased this month",
-}
+  '24h': '{count} purchased in the last 24 hours',
+  week: '{count} purchased this week',
+  month: '{count} purchased this month',
+};
 
 export function RecentPurchasesBadge({
-  className = "",
+  className = '',
   productId,
   message,
-  variant = "default",
-  icon = "flame",
+  variant = 'default',
+  icon = 'flame',
   showThreshold = 1,
   refreshInterval = 0,
-  timePeriod = "24h",
+  timePeriod = '24h',
 }: RecentPurchasesBadgeProps) {
-  const [count, setCount] = useState<number | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [count, setCount] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchPurchaseCount = useCallback(async () => {
     if (!productId) {
-      setLoading(false)
-      return
+      setLoading(false);
+
+      return;
     }
 
     try {
       const response = await fetch(
-        `/api/bigcommerce/recent-purchases?productId=${productId}&period=${timePeriod}`
-      )
+        `/api/bigcommerce/recent-purchases?productId=${productId}&period=${timePeriod}`,
+      );
 
       if (!response.ok) {
-        throw new Error("Failed to fetch purchase count")
+        throw new Error('Failed to fetch purchase count');
       }
 
-      const data = await response.json()
-      setCount(data.count)
-      setError(null)
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      const data: ApiResponse = await response.json();
+
+      setCount(data.count);
+      setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error")
-      setCount(null)
+      setError(err instanceof Error ? err.message : 'Unknown error');
+      setCount(null);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [productId, timePeriod])
+  }, [productId, timePeriod]);
 
   useEffect(() => {
-    fetchPurchaseCount()
+    void fetchPurchaseCount();
 
     if (refreshInterval > 0) {
-      const interval = setInterval(fetchPurchaseCount, refreshInterval * 1000)
-      return () => clearInterval(interval)
+      const interval = setInterval(() => {
+        void fetchPurchaseCount();
+      }, refreshInterval * 1000);
+
+      return () => clearInterval(interval);
     }
-  }, [fetchPurchaseCount, refreshInterval])
+
+    return undefined;
+  }, [fetchPurchaseCount, refreshInterval]);
 
   if (loading || error || !productId || count === null || count < showThreshold) {
-    return null
+    return null;
   }
 
-  const IconComponent = icon !== "none" ? iconMap[icon] : null
+  const IconComponent = icon !== 'none' ? iconMap[icon] : null;
   const displayMessage = (message || defaultMessages[timePeriod]).replace(
-    "{count}",
-    count.toString()
-  )
+    '{count}',
+    count.toString(),
+  );
 
   const variantStyles = {
     default: {
-      backgroundColor: "#fffbeb",
-      color: "#92400e",
-      border: "1px solid #fde68a",
+      backgroundColor: '#fffbeb',
+      color: '#92400e',
+      border: '1px solid #fde68a',
     },
     minimal: {
-      backgroundColor: "transparent",
-      color: "#4b5563",
+      backgroundColor: 'transparent',
+      color: '#4b5563',
     },
     prominent: {
-      background: "linear-gradient(to right, #f97316, #ef4444)",
-      color: "#ffffff",
-      boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1)",
+      background: 'linear-gradient(to right, #f97316, #ef4444)',
+      color: '#ffffff',
+      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
     },
-  }
+  };
 
   return (
     <div
+      className={className}
       style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: "8px",
-        padding: "6px 12px",
-        borderRadius: "9999px",
-        fontSize: "14px",
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '8px',
+        padding: '6px 12px',
+        borderRadius: '9999px',
+        fontSize: '14px',
         fontWeight: 500,
         ...variantStyles[variant],
       }}
-      className={className}
     >
-      {IconComponent && <IconComponent style={{ width: "16px", height: "16px" }} />}
+      {IconComponent && <IconComponent style={{ width: '16px', height: '16px' }} />}
       <span>{displayMessage}</span>
     </div>
-  )
+  );
 }
 ```
 
@@ -343,66 +375,68 @@ export function RecentPurchasesBadge({
 Create `core/lib/makeswift/components/recent-purchases-badge/register.ts`:
 
 ```ts
-import { runtime } from "~/lib/makeswift/runtime"
-import { Number, Select, Style, TextInput } from "@makeswift/runtime/controls"
-import { RecentPurchasesBadge } from "./client"
+import { Number, Select, Style, TextInput } from '@makeswift/runtime/controls';
+
+import { runtime } from '~/lib/makeswift/runtime';
+
+import { RecentPurchasesBadge } from './client';
 
 runtime.registerComponent(RecentPurchasesBadge, {
-  type: "recent-purchases-badge",
-  label: "Recent Purchases Badge",
+  type: 'recent-purchases-badge',
+  label: 'Recent Purchases Badge',
   props: {
     className: Style(),
     productId: Number({
-      label: "Product ID",
+      label: 'Product ID',
       defaultValue: 0,
       step: 1,
     }),
     message: TextInput({
-      label: "Message (use {count} for number)",
-      defaultValue: "",
+      label: 'Message',
+      defaultValue: '{count} sold in the last 24 hours',
       selectAll: true,
     }),
-    timePeriod: Select({
-      label: "Time Period",
-      options: [
-        { value: "24h", label: "Last 24 Hours" },
-        { value: "week", label: "This Week" },
-        { value: "month", label: "This Month" },
-      ],
-      defaultValue: "24h",
-    }),
     variant: Select({
-      label: "Variant",
+      label: 'Variant',
       options: [
-        { value: "default", label: "Default" },
-        { value: "minimal", label: "Minimal" },
-        { value: "prominent", label: "Prominent" },
+        { value: 'default', label: 'Default' },
+        { value: 'minimal', label: 'Minimal' },
+        { value: 'prominent', label: 'Prominent' },
       ],
-      defaultValue: "default",
+      defaultValue: 'default',
     }),
     icon: Select({
-      label: "Icon",
+      label: 'Icon',
       options: [
-        { value: "flame", label: "Flame" },
-        { value: "bag", label: "Shopping Bag" },
-        { value: "trending", label: "Trending" },
-        { value: "users", label: "Users" },
-        { value: "none", label: "None" },
+        { value: 'flame', label: 'Flame' },
+        { value: 'bag', label: 'Shopping Bag' },
+        { value: 'trending', label: 'Trending' },
+        { value: 'users', label: 'Users' },
+        { value: 'none', label: 'None' },
       ],
-      defaultValue: "flame",
+      defaultValue: 'flame',
     }),
     showThreshold: Number({
-      label: "Show Threshold",
+      label: 'Show Threshold',
       defaultValue: 1,
       step: 1,
     }),
     refreshInterval: Number({
-      label: "Refresh Interval (seconds)",
+      label: 'Refresh Interval (seconds)',
       defaultValue: 60,
       step: 10,
     }),
+    timePeriod: Select({
+      label: 'Time Period',
+      options: [
+        { value: '24h', label: 'Last 24 Hours' },
+        { value: 'week', label: 'This Week' },
+        { value: 'month', label: 'This Month' },
+      ],
+      defaultValue: '24h',
+    }),
   },
-})
+});
 ```
 
 ### Step 4: Register the Component
@@ -416,7 +450,7 @@ import './components/recent-purchases-badge/register';
 
 ### Step 5: Add Environment Variables
 
-Add to `.env.local`:
+Add to `core/.env.local`:
 
 ```env
 BIGCOMMERCE_STORE_HASH=your_store_hash
@@ -540,9 +574,9 @@ In `client.tsx`, add to the `variantStyles` object:
 const variantStyles = {
   // ... existing variants ...
   custom: {
-    backgroundColor: "#your-color",
-    color: "#text-color",
-    border: "1px solid #border-color",
+    backgroundColor: '#your-color',
+    color: '#text-color',
+    border: '1px solid #border-color',
   },
 }
 ```
@@ -589,13 +623,23 @@ Then update the `RecentPurchasesBadgeProps` type and the Makeswift registration.
 
 1. Verify `MAKESWIFT_SITE_API_KEY` is correct
 2. Check Host URL in Makeswift dashboard matches `http://localhost:3000`
-3. Ensure environment variables are in the correct without typos, quotes, or white space in `.env.local`
+3. Ensure environment variables are in the correct `.env.local` location (inside `core/` for monorepos)
 
 ---
 
 ## Issues Encountered & Resolutions
 
-### 1. BigCommerce API 400 Error - Invalid status_id Field
+### 1. Makeswift "Host Manifest Unreachable" Error
+
+**Symptom**: CORS error when loading Makeswift editor, manifest returns "Unauthorized"
+
+**Cause**: In a monorepo setup, the `.env.local` file was in the root directory, but the app runs from `core/` and looks for environment variables there.
+
+**Resolution**: Place `.env.local` in `core/.env.local` (the app directory), not the monorepo root.
+
+---
+
+### 2. BigCommerce API 400 Error - Invalid status_id Field
 
 **Symptom**: API returns `{"status":400,"message":"The field 'status_id' is invalid."}`
 
@@ -619,7 +663,7 @@ const completedOrders = orders.filter(order =>
 
 ---
 
-### 2. Tailwind Gradient Classes Not Rendering
+### 3. Tailwind Gradient Classes Not Rendering
 
 **Symptom**: Badge renders in DOM but appears as unstyled gray box. Tailwind classes like `bg-gradient-to-r from-orange-500 to-red-500` are not applied.
 
@@ -629,22 +673,22 @@ const completedOrders = orders.filter(order =>
 ```tsx
 // Before (broken)
 const variantStyles = {
-  prominent: "bg-gradient-to-r from-orange-500 to-red-500 text-white",
+  prominent: 'bg-gradient-to-r from-orange-500 to-red-500 text-white',
 }
 
 // After (working)
 const variantStyles = {
   prominent: {
-    background: "linear-gradient(to right, #f97316, #ef4444)",
-    color: "#ffffff",
-    boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1)",
+    background: 'linear-gradient(to right, #f97316, #ef4444)',
+    color: '#ffffff',
+    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
   },
 }
 ```
 
 ---
 
-### 3. Duplicate Runtime Instance
+### 4. Duplicate Runtime Instance
 
 **Symptom**: Makeswift editor fails to load after adding component
 
@@ -653,16 +697,16 @@ const variantStyles = {
 **Resolution**: Import the existing runtime:
 ```ts
 // Correct
-import { runtime } from "~/lib/makeswift/runtime"
+import { runtime } from '~/lib/makeswift/runtime';
 
 // Wrong - creates duplicate
-import { ReactRuntimeCore } from "@makeswift/runtime"
-export const runtime = new ReactRuntimeCore({ ... })
+import { ReactRuntimeCore } from '@makeswift/runtime';
+export const runtime = new ReactRuntimeCore({ ... });
 ```
 
 ---
 
-### 4. Path Alias Mismatch
+### 5. Path Alias Mismatch
 
 **Symptom**: Module not found errors
 
@@ -671,10 +715,53 @@ export const runtime = new ReactRuntimeCore({ ... })
 **Resolution**: Check `tsconfig.json` for the correct path alias and use consistently:
 ```ts
 // If project uses ~
-import { runtime } from "~/lib/makeswift/runtime"
+import { runtime } from '~/lib/makeswift/runtime';
 
 // If project uses @
-import { runtime } from "@/lib/makeswift/runtime"
+import { runtime } from '@/lib/makeswift/runtime';
+```
+
+---
+
+### 6. ESLint Errors on Vercel Build
+
+**Symptom**: Vercel build fails with multiple ESLint errors including:
+- `@typescript-eslint/no-unsafe-assignment`
+- `@stylistic/padding-line-between-statements`
+- Import ordering errors
+- Missing trailing newlines
+
+**Cause**: Catalyst uses very strict ESLint rules that differ from typical Next.js projects.
+
+**Resolution**: Follow Catalyst's ESLint conventions:
+```ts
+// Single quotes, not double quotes
+const message = 'Hello';
+
+// Blank lines between switch cases
+switch (period) {
+  case 'week':
+    now.setDate(now.getDate() - 7);
+    break;
+
+  case 'month':
+    now.setDate(now.getDate() - 30);
+    break;
+}
+
+// ESLint disable for response.json() calls (returns any)
+// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+const data: ApiResponse = await response.json();
+
+// Use ?? instead of || for nullish coalescing
+const period = searchParams.get('period') ?? '24h';
+
+// Import order: external packages first, then local imports
+import { Number, Select } from '@makeswift/runtime/controls';
+
+import { runtime } from '~/lib/makeswift/runtime';
+
+// Ensure files end with a blank line
 ```
 
 ---
@@ -710,3 +797,36 @@ Fetches purchase count for a product within a time period.
   "lastUpdated": "2026-01-09T23:04:45.323Z",
   "isMock": true
 }
+```
+
+---
+
+## Deployment
+
+### Deploying to Production
+
+1. Push your code to Git:
+   ```bash
+   git add .
+   git commit -m "Add Recent Purchases Badge component"
+   git push origin main
+   ```
+
+2. Set production environment variables in your hosting platform (Vercel, etc.):
+   ```
+   BIGCOMMERCE_STORE_HASH=your_store_hash
+   BIGCOMMERCE_ACCESS_TOKEN=your_access_token
+   MAKESWIFT_SITE_API_KEY=your_production_api_key
+   ```
+
+3. Update Makeswift Host Settings:
+   - In Makeswift Dashboard → Settings → Host
+   - Change Host URL from `http://localhost:3000` to your production URL
+
+### Multiple Environments
+
+Many teams configure two Makeswift Hosts:
+- **Development Host** → `http://localhost:3000`
+- **Production Host** → `https://your-production-url.com`
+
+You can switch between them in the Makeswift editor.
