@@ -14,6 +14,10 @@ export interface RecentPurchasesBadgeProps {
   timePeriod?: '24h' | 'week' | 'month';
 }
 
+interface ApiResponse {
+  count: number;
+}
+
 const iconMap = {
   flame: Flame,
   bag: ShoppingBag,
@@ -45,6 +49,7 @@ export function RecentPurchasesBadge({
   const fetchPurchaseCount = useCallback(async () => {
     if (!productId) {
       setLoading(false);
+
       return;
     }
 
@@ -57,7 +62,8 @@ export function RecentPurchasesBadge({
         throw new Error('Failed to fetch purchase count');
       }
 
-      const data: { count: number } = await response.json();
+      const data: ApiResponse = await response.json();
+
       setCount(data.count);
       setError(null);
     } catch (err) {
@@ -75,6 +81,7 @@ export function RecentPurchasesBadge({
       const interval = setInterval(() => {
         void fetchPurchaseCount();
       }, refreshInterval * 1000);
+
       return () => clearInterval(interval);
     }
 
